@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Budget" />
+<title>Pogosyan Budget</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --paper: #f5f1ea;
+    --paper-2: #ebe5d9;
+    --rule: #c9bfae;
+    --accent: #c14620;
+    --accent-2: #2c5530;
+    --warn: #b8860b;
+    --muted: #6b6357;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Fraunces', Georgia, serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+  body {
+    padding: max(20px, env(safe-area-inset-top)) 16px max(80px, env(safe-area-inset-bottom));
+    max-width: 1280px;
+    margin: 0 auto;
+    min-height: 100vh;
+  }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+  }
+  .brand h1 {
+    font-size: clamp(32px, 8vw, 48px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .brand .sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  .meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+  .pill {
+    display: inline-block;
+    padding: 4px 10px;
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 100px;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+  }
+  .pill.processing { background: var(--accent); }
+  .meta-info { color: var(--muted); }
+
+  .upload-zone {
+    border: 2px dashed var(--rule);
+    padding: 32px 20px;
+    text-align: center;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    background: var(--paper-2);
+    transition: all 0.2s;
+  }
+  .upload-zone.drag { border-color: var(--accent); background: rgba(193,70,32,0.05); }
+  .upload-zone.processing { border-color: var(--accent); }
+  .upload-zone h3 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .upload-zone p {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  .upload-zone button {
+    width: 100%;
+    padding: 14px;
+    font-size: 15px;
+  }
+  #fileInput { display: none; }
+
+  button {
+    font-family: 'Fraunces', serif;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 10px 20px;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+    -webkit-appearance: none;
+  }
+  button:active:not(:disabled) { opacity: 0.7; }
+  button:disabled { opacity: 0.4; }
+  button.ghost {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--ink);
+  }
+  button.danger { background: var(--accent); }
+  button.small { padding: 8px 14px; font-size: 12px; }
+  button.tiny { padding: 6px 10px; font-size: 11px; }
+
+  .log {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 12px 16px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    max-height: 160px;
+    overflow-y: auto;
+    display: none;
+    word-break: break-word;
+  }
+  .log.visible { display: block; }
+  .log .line { padding: 2px 0; }
+  .log .ok { color: #8fbc8f; }
+  .log .err { color: #e87b5d; }
+
+  .dashboard { display: none; }
+  .dashboard.visible { display: block; }
+
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .controls-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  select, input[type="number"] {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 10px 12px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 4px;
+    outline: none;
+    -webkit-appearance: none;
+    flex: 1;
+  }
+
+  .view-toggle {
+    display: inline-flex;
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    border-radius: 100px;
+    padding: 3px;
+    width: 100%;
+  }
+  .view-toggle button {
+    background: transparent;
+    color: var(--ink);
+    padding: 8px 16px;
+    font-size: 11px;
+    border-radius: 100px;
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    flex: 1;
+  }
+  .view-toggle button.active {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .kpi-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .kpi {
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    padding: 14px 16px;
+    border-radius: 4px;
+  }
+  .kpi .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .kpi .value {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .kpi .delta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    margin-top: 4px;
+    color: var(--muted);
+  }
+
+  section.block {
+    margin-bottom: 32px;
+  }
+  section.block h2 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+  section.block .section-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .cat-card {
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  .cat-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    cursor: pointer;
+  }
+  .cat-head .name { font-weight: 600; font-size: 15px; }
+  .cat-head .name .count { color: var(--muted); font-size: 12px; font-weight: 400; margin-left: 6px; }
+  .cat-head .amt {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .cat-bar {
+    height: 4px;
+    background: var(--rule);
+    margin: 0 16px 8px;
+    border-radius: 100px;
+    overflow: hidden;
+  }
+  .cat-bar .fill {
+    height: 100%;
+    background: var(--ink);
+  }
+  .cat-bar .fill.over { background: var(--accent); }
+  .cat-budget {
+    padding: 0 16px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+  }
+  .cat-detail {
+    display: none;
+    padding: 8px 16px 14px;
+    border-top: 1px dashed var(--rule);
+    background: var(--paper);
+  }
+  .cat-detail.visible { display: block; }
+  .tx-line {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 12px;
+    gap: 10px;
+    border-bottom: 1px dotted var(--rule);
+  }
+  .tx-line:last-child { border-bottom: none; }
+  .tx-line .desc { flex: 1; word-break: break-word; }
+  .tx-line .amt { font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
+  .tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    padding: 1px 5px;
+    border-radius: 2px;
+    margin-left: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    vertical-align: middle;
+  }
+  .tag.biz { background: var(--accent-2); color: var(--paper); }
+  .tag.recurring { background: var(--warn); color: var(--paper); }
+
+  .flags {
+    background: var(--paper-2);
+    border-left: 4px solid var(--accent);
+    padding: 14px 16px;
+    border-radius: 0 4px 4px 0;
+  }
+  .flags ul { list-style: none; }
+  .flags li {
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--rule);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .flags li:last-child { border-bottom: none; }
+  .flags li::before {
+    content: "→ ";
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .stmt-list {
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    padding: 12px 14px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+  }
+  .stmt-list h4 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .stmt-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    gap: 8px;
+    border-bottom: 1px dotted var(--rule);
+  }
+  .stmt-item:last-child { border-bottom: none; }
+  .stmt-item .info { flex: 1; word-break: break-word; }
+  .stmt-item .info span { color: var(--muted); font-size: 10px; display: block; }
+  .stmt-item a { color: var(--accent); text-decoration: none; font-size: 11px; padding: 4px 8px; }
+
+  .modal-bg {
+    position: fixed;
+    inset: 0;
+    background: rgba(26,26,26,0.7);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-bg.visible { display: flex; }
+  .modal {
+    background: var(--paper);
+    padding: 24px 20px;
+    border-radius: 12px 12px 0 0;
+    width: 100%;
+    max-width: 600px;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+  .modal h2 { font-size: 20px; margin-bottom: 12px; }
+  .modal-row {
+    display: grid;
+    grid-template-columns: 1fr 90px;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .modal-row label { font-size: 13px; }
+  .modal-row label .avg { color: var(--muted); font-size: 10px; display: block; }
+  .modal-row input { padding: 8px 10px; font-size: 12px; }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    position: sticky;
+    bottom: 0;
+    background: var(--paper);
+    padding-top: 12px;
+  }
+  .modal-actions button { flex: 1; }
+
+  /* Tablet+ */
+  @media (min-width: 768px) {
+    body { padding: 32px 40px 80px; }
+    .kpi-row { grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .kpi .value { font-size: 28px; }
+    .controls { flex-direction: row; justify-content: space-between; align-items: center; }
+    .view-toggle { width: auto; }
+    .modal-bg { align-items: center; }
+    .modal { border-radius: 8px; max-width: 500px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>Pogosyan Budget.</h1>
+    <div class="sub">Personal Finance · Powered by Claude</div>
+  </div>
+  <div class="meta-row">
+    <span class="pill" id="statusPill">READY</span>
+    <span class="meta-info" id="lastUpdate">No data yet</span>
+  </div>
+</header>
+
+<div class="upload-zone" id="uploadZone">
+  <h3>Drop a statement or screenshot</h3>
+  <p>PDFs, screenshots of credit card balances, anything financial.</p>
+  <button id="uploadBtn">Choose file</button>
+  <input type="file" id="fileInput" accept="application/pdf,image/*" multiple />
+</div>
+
+<div class="log" id="log"></div>
+
+<div class="dashboard" id="dashboard">
+  <div class="stmt-list" id="statementsList"></div>
+
+  <div class="controls">
+    <div class="controls-row">
+      <select id="monthSelect"></select>
+    </div>
+    <div class="view-toggle">
+      <button data-view="all" class="active">All</button>
+      <button data-view="personal">Personal</button>
+      <button data-view="business">Business</button>
+    </div>
+    <div class="controls-row">
+      <button class="ghost small" id="setBudgetsBtn">Budgets</button>
+      <button class="ghost small" id="exportBtn">Export</button>
+      <button class="danger small" id="resetBtn">Reset</button>
+    </div>
+  </div>
+
+  <div class="kpi-row" id="kpiRow"></div>
+
+  <section class="block">
+    <h2>Categories</h2>
+    <div class="section-sub">Tap a category to see transactions</div>
+    <div id="catList"></div>
+  </section>
+
+  <section class="block">
+    <h2>Flags</h2>
+    <div class="section-sub">What looks off this month</div>
+    <div class="flags">
+      <ul id="flagsList"></ul>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Subscriptions</h2>
+    <div class="section-sub">Auto-detected · Annual amortized to monthly</div>
+    <div id="subsList"></div>
+  </section>
+</div>
+
+<div class="modal-bg" id="budgetModal">
+  <div class="modal">
+    <h2>Set monthly budgets</h2>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Loose budgets based on your average. Leave blank to skip.</p>
+    <div id="budgetRows"></div>
+    <div class="modal-actions">
+      <button class="ghost" id="cancelBudgetsBtn">Cancel</button>
+      <button id="saveBudgetsBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'pogosyan_budget_v2';
+let state = { statements: [], budgets: {}, manualOverrides: {} };
+
+// ============================================================
+// PERSISTENCE
+// ============================================================
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) state = { ...state, ...JSON.parse(raw) };
+  } catch (e) { console.error(e); }
+}
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+// ============================================================
+// LOGGING
+// ============================================================
+const logEl = document.getElementById('log');
+function log(msg, type = 'info') {
+  logEl.classList.add('visible');
+  const line = document.createElement('div');
+  line.className = `line ${type}`;
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function setStatus(text, processing = false) {
+  const pill = document.getElementById('statusPill');
+  pill.textContent = text;
+  pill.classList.toggle('processing', processing);
+}
+
+// ============================================================
+// FILE READING
+// ============================================================
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+// ============================================================
+// API CALL — TO YOUR VERCEL FUNCTION (NOT DIRECTLY TO ANTHROPIC)
+// ============================================================
+async function categorizeStatement(file) {
+  log(`Reading ${file.name}...`);
+  const base64 = await fileToBase64(file);
+
+  log(`Sending to Claude (30-90s)...`);
+  setStatus('PROCESSING', true);
+
+  const resp = await fetch('/api/categorize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fileType: file.type,
+      base64: base64,
+      filename: file.name
+    })
+  });
+
+  if (!resp.ok) {
+    let errInfo = `HTTP ${resp.status}`;
+    try {
+      const errJson = await resp.json();
+      errInfo = errJson.error + (errJson.detail ? ': ' + errJson.detail : '');
+      if (errJson.rawPreview) errInfo += ' | Preview: ' + errJson.rawPreview.substring(0, 120);
+    } catch {}
+    throw new Error(errInfo);
+  }
+
+  return await resp.json();
+}
+
+async function handleFiles(files) {
+  for (const file of files) {
+    const isPdf = file.type === 'application/pdf';
+    const isImage = file.type.startsWith('image/');
+    if (!isPdf && !isImage) {
+      log(`Skipping ${file.name} (must be PDF or image)`, 'err');
+      continue;
+    }
+    try {
+      const result = await categorizeStatement(file);
+      const stmtId = `${result.bank}_${result.period.start}_${Date.now()}`;
+      const stmt = {
+        id: stmtId,
+        filename: file.name,
+        bank: result.bank,
+        accountType: result.accountType,
+        period: result.period,
+        beginningBalance: result.beginningBalance,
+        endingBalance: result.endingBalance,
+        transactions: result.transactions.map((t, i) => ({ ...t, id: `${stmtId}_t${i}` }))
+      };
+      state.statements.push(stmt);
+      saveState();
+      log(`✓ ${file.name} — ${result.transactions.length} txns`, 'ok');
+    } catch (e) {
+      log(`✗ ${file.name}: ${e.message}`, 'err');
+    }
+  }
+  setStatus('READY');
+  render();
+}
+
+// ============================================================
+// AGGREGATION
+// ============================================================
+function getMonthKey(dateStr) { return dateStr.substring(0, 7); }
+
+function getAllMonths() {
+  const months = new Set();
+  state.statements.forEach(s => s.transactions.forEach(t => {
+    if (t.businessPersonal === 'internal') return;
+    months.add(getMonthKey(t.date));
+  }));
+  return Array.from(months).sort().reverse();
+}
+
+function getTransactionsForMonth(monthKey, view = 'all') {
+  const txs = [];
+  state.statements.forEach(s => {
+    s.transactions.forEach(t => {
+      if (getMonthKey(t.date) !== monthKey) return;
+      if (t.businessPersonal === 'internal') return;
+      const o = state.manualOverrides[t.id];
+      const bp = o?.businessPersonal || t.businessPersonal;
+      if (view === 'personal' && bp !== 'personal') return;
+      if (view === 'business' && bp !== 'business') return;
+      txs.push({ ...t, category: o?.category || t.category, businessPersonal: bp });
+    });
+  });
+  return txs;
+}
+
+function aggregateByCategory(txs) {
+  const out = {};
+  txs.forEach(t => {
+    if (t.amount > 0) return;
+    const cat = t.category || 'Uncategorized';
+    if (!out[cat]) out[cat] = { total: 0, transactions: [] };
+    out[cat].total += Math.abs(t.amount);
+    out[cat].transactions.push(t);
+  });
+  return out;
+}
+
+function detectSubscriptions() {
+  const groups = {};
+  state.statements.forEach(s => {
+    s.transactions.forEach(t => {
+      if (t.amount > 0) return;
+      const vendor = t.description.toLowerCase()
+        .replace(/[*]/g, ' ').replace(/\d+/g, '').replace(/\s+/g, ' ')
+        .trim().split(' ').slice(0, 4).join(' ');
+      if (!groups[vendor]) groups[vendor] = [];
+      groups[vendor].push({ date: t.date, amount: Math.abs(t.amount), desc: t.description });
+    });
+  });
+  const subs = [];
+  Object.entries(groups).forEach(([vendor, charges]) => {
+    if (charges.length < 2) return;
+    const months = new Set(charges.map(c => getMonthKey(c.date)));
+    if (months.size < 2) return;
+    const avg = charges.reduce((s, c) => s + c.amount, 0) / charges.length;
+    const sortedDates = charges.map(c => c.date).sort();
+    const first = new Date(sortedDates[0]);
+    const last = new Date(sortedDates[sortedDates.length - 1]);
+    const monthsBetween = (last - first) / (1000*60*60*24*30);
+    const cpm = charges.length / Math.max(monthsBetween, 1);
+    let frequency = 'monthly';
+    let monthlyCost = avg;
+    if (cpm < 0.3) { frequency = 'annual'; monthlyCost = avg / 12; }
+    else if (cpm < 0.6) { frequency = 'quarterly'; monthlyCost = avg / 3; }
+    subs.push({
+      vendor: charges[0].desc.split(/\s{2,}/)[0].substring(0, 32),
+      frequency, perCharge: avg, monthlyCost, count: charges.length
+    });
+  });
+  return subs.sort((a, b) => b.monthlyCost - a.monthlyCost);
+}
+
+function generateFlags(monthKey, view) {
+  const flags = [];
+  const txs = getTransactionsForMonth(monthKey, view);
+  const cats = aggregateByCategory(txs);
+
+  Object.entries(cats).forEach(([cat, data]) => {
+    const budget = state.budgets[cat];
+    if (budget && data.total > budget * 1.15) {
+      const pct = Math.round((data.total / budget - 1) * 100);
+      flags.push(`<b>${cat}</b> is ${pct}% over budget — $${data.total.toFixed(0)} vs $${budget}.`);
+    }
+  });
+
+  const bigTxs = txs.filter(t => Math.abs(t.amount) > 200 && t.amount < 0).sort((a,b) => a.amount - b.amount);
+  bigTxs.slice(0, 3).forEach(t => {
+    flags.push(`Large: <b>${t.description.substring(0, 40)}</b> — $${Math.abs(t.amount).toFixed(2)} on ${t.date}`);
+  });
+
+  const needsReview = txs.filter(t => t.needsReview);
+  if (needsReview.length > 0) flags.push(`<b>${needsReview.length} txns</b> flagged for review.`);
+
+  const months = getAllMonths();
+  const idx = months.indexOf(monthKey);
+  if (idx !== -1 && idx < months.length - 1) {
+    const prev = months[idx + 1];
+    const prevCats = aggregateByCategory(getTransactionsForMonth(prev, view));
+    Object.entries(cats).forEach(([cat, data]) => {
+      const p = prevCats[cat]?.total || 0;
+      if (p > 50 && data.total > p * 1.5) {
+        const pct = Math.round((data.total / p - 1) * 100);
+        flags.push(`<b>${cat}</b> jumped ${pct}% from ${prev} ($${p.toFixed(0)} → $${data.total.toFixed(0)})`);
+      }
+    });
+  }
+
+  return flags;
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+function render() {
+  const hasData = state.statements.length > 0;
+  document.getElementById('dashboard').classList.toggle('visible', hasData);
+
+  if (!hasData) {
+    document.getElementById('lastUpdate').textContent = 'No statements loaded';
+    return;
+  }
+
+  const totalTxs = state.statements.reduce((s, st) => s + st.transactions.length, 0);
+  document.getElementById('lastUpdate').textContent = `${state.statements.length} stmts · ${totalTxs} txns`;
+
+  const stmtListEl = document.getElementById('statementsList');
+  stmtListEl.innerHTML = '<h4>Loaded statements</h4>' + state.statements.map(s => `
+    <div class="stmt-item">
+      <div class="info">${s.bank} ${s.accountType || ''}<span>${s.period.start} → ${s.period.end} · ${s.transactions.length} txns</span></div>
+      <a href="#" data-rm="${s.id}">remove</a>
+    </div>
+  `).join('');
+  stmtListEl.querySelectorAll('a[data-rm]').forEach(a => {
+    a.onclick = (e) => {
+      e.preventDefault();
+      if (confirm('Remove this statement?')) {
+        state.statements = state.statements.filter(s => s.id !== a.dataset.rm);
+        saveState();
+        render();
+      }
+    };
+  });
+
+  const months = getAllMonths();
+  const monthSelect = document.getElementById('monthSelect');
+  const currentVal = monthSelect.value;
+  monthSelect.innerHTML = months.map(m => {
+    const [y, mo] = m.split('-');
+    const label = new Date(y, mo - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    return `<option value="${m}">${label}</option>`;
+  }).join('');
+  if (currentVal && months.includes(currentVal)) monthSelect.value = currentVal;
+
+  renderMonth();
+}
+
+function getCurrentView() {
+  return document.querySelector('.view-toggle button.active')?.dataset.view || 'all';
+}
+
+function fmt(n) {
+  return '$' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function renderMonth() {
+  const monthKey = document.getElementById('monthSelect').value;
+  if (!monthKey) return;
+  const view = getCurrentView();
+  const txs = getTransactionsForMonth(monthKey, view);
+  const cats = aggregateByCategory(txs);
+
+  const totalSpent = Object.values(cats).reduce((s, c) => s + c.total, 0);
+  const totalIncome = txs.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+  const months = getAllMonths();
+  const idx = months.indexOf(monthKey);
+  let prevSpent = 0;
+  if (idx !== -1 && idx < months.length - 1) {
+    prevSpent = Object.values(aggregateByCategory(getTransactionsForMonth(months[idx + 1], view))).reduce((s, c) => s + c.total, 0);
+  }
+  const delta = prevSpent > 0 ? ((totalSpent - prevSpent) / prevSpent * 100) : 0;
+  const net = totalIncome - totalSpent;
+
+  document.getElementById('kpiRow').innerHTML = `
+    <div class="kpi">
+      <div class="label">Spent</div>
+      <div class="value">${fmt(totalSpent)}</div>
+      <div class="delta">${prevSpent > 0 ? (delta > 0 ? '↑' : '↓') + ' ' + Math.abs(delta).toFixed(0) + '% vs prev' : '—'}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Income</div>
+      <div class="value">${fmt(totalIncome)}</div>
+      <div class="delta">${view}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Net</div>
+      <div class="value" style="color:${net >= 0 ? 'var(--accent-2)' : 'var(--accent)'};">${fmt(net)}</div>
+      <div class="delta">${net >= 0 ? 'Surplus' : 'Deficit'}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Txns</div>
+      <div class="value">${txs.length}</div>
+      <div class="delta">${Object.keys(cats).length} cats</div>
+    </div>
+  `;
+
+  // Categories as cards
+  const sortedCats = Object.entries(cats).sort((a, b) => b[1].total - a[1].total);
+  const catList = document.getElementById('catList');
+  catList.innerHTML = '';
+  sortedCats.forEach(([cat, data]) => {
+    const budget = state.budgets[cat] || 0;
+    const pct = budget > 0 ? Math.min(data.total / budget * 100, 200) : 0;
+    const over = budget > 0 && data.total > budget;
+
+    const card = document.createElement('div');
+    card.className = 'cat-card';
+    const detailId = `det_${cat.replace(/[^a-z0-9]/gi, '_')}`;
+    card.innerHTML = `
+      <div class="cat-head">
+        <div class="name">${cat} <span class="count">(${data.transactions.length})</span></div>
+        <div class="amt">${fmt(data.total)}</div>
+      </div>
+      ${budget > 0 ? `
+        <div class="cat-bar"><div class="fill ${over ? 'over' : ''}" style="width:${Math.min(pct, 100)}%"></div></div>
+        <div class="cat-budget"><span>Budget ${fmt(budget)}</span><span style="color:${over ? 'var(--accent)' : 'inherit'}">${pct.toFixed(0)}%</span></div>
+      ` : ''}
+      <div class="cat-detail" id="${detailId}">
+        ${data.transactions.sort((a,b) => a.date.localeCompare(b.date)).map(t => `
+          <div class="tx-line">
+            <span class="desc">${t.date.substring(5)} · ${t.description.substring(0, 50)}${t.businessPersonal === 'business' ? '<span class="tag biz">biz</span>' : ''}${t.isRecurring ? '<span class="tag recurring">' + (t.frequency || 'rec') + '</span>' : ''}</span>
+            <span class="amt">$${Math.abs(t.amount).toFixed(2)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    card.querySelector('.cat-head').onclick = () => {
+      document.getElementById(detailId).classList.toggle('visible');
+    };
+    catList.appendChild(card);
+  });
+
+  // Flags
+  const flags = generateFlags(monthKey, view);
+  document.getElementById('flagsList').innerHTML = flags.length
+    ? flags.map(f => `<li>${f}</li>`).join('')
+    : '<li style="color:var(--muted);">No major flags — looks healthy.</li>';
+
+  // Subscriptions
+  const subs = detectSubscriptions();
+  document.getElementById('subsList').innerHTML = subs.length
+    ? subs.slice(0, 15).map(s => `
+      <div class="cat-card">
+        <div class="cat-head">
+          <div class="name">${s.vendor} <span class="count">${s.frequency}</span></div>
+          <div class="amt">${fmt(s.monthlyCost)}/mo</div>
+        </div>
+      </div>
+    `).join('')
+    : '<div style="color:var(--muted);text-align:center;padding:20px;font-size:13px;">Need 2+ months to detect subscriptions</div>';
+}
+
+// ============================================================
+// BUDGETS
+// ============================================================
+function openBudgetsModal() {
+  const allCats = new Set();
+  state.statements.forEach(s => s.transactions.forEach(t => {
+    if (t.amount < 0 && t.businessPersonal !== 'internal') allCats.add(t.category || 'Uncategorized');
+  }));
+  const monthlyAvg = {};
+  Array.from(allCats).forEach(cat => {
+    const months = getAllMonths();
+    const totals = months.map(m => aggregateByCategory(getTransactionsForMonth(m, 'all'))[cat]?.total || 0).filter(t => t > 0);
+    monthlyAvg[cat] = totals.length ? totals.reduce((s,t) => s+t, 0) / totals.length : 0;
+  });
+
+  document.getElementById('budgetRows').innerHTML = Array.from(allCats).sort().map(cat => `
+    <div class="modal-row">
+      <label>${cat}<span class="avg">avg ${fmt(monthlyAvg[cat])}</span></label>
+      <input type="number" data-cat="${cat}" placeholder="${monthlyAvg[cat].toFixed(0)}" value="${state.budgets[cat] || ''}" />
+    </div>
+  `).join('');
+  document.getElementById('budgetModal').classList.add('visible');
+}
+
+document.getElementById('saveBudgetsBtn').onclick = () => {
+  document.querySelectorAll('#budgetRows input').forEach(inp => {
+    const cat = inp.dataset.cat;
+    const val = parseFloat(inp.value);
+    if (!isNaN(val) && val > 0) state.budgets[cat] = val;
+    else delete state.budgets[cat];
+  });
+  saveState();
+  document.getElementById('budgetModal').classList.remove('visible');
+  render();
+};
+document.getElementById('cancelBudgetsBtn').onclick = () => {
+  document.getElementById('budgetModal').classList.remove('visible');
+};
+
+function exportData() {
+  const monthKey = document.getElementById('monthSelect').value;
+  const view = getCurrentView();
+  const txs = getTransactionsForMonth(monthKey, view);
+  const rows = [['Date','Description','Amount','Category','B/P','Recurring','Frequency']];
+  txs.forEach(t => rows.push([t.date, t.description, t.amount, t.category, t.businessPersonal, t.isRecurring, t.frequency]));
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `budget_${monthKey}_${view}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ============================================================
+// EVENTS
+// ============================================================
+const dropZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+document.getElementById('uploadBtn').onclick = (e) => { e.stopPropagation(); fileInput.click(); };
+dropZone.onclick = (e) => { if (e.target === dropZone) fileInput.click(); };
+fileInput.onchange = (e) => handleFiles(Array.from(e.target.files));
+dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('drag'); };
+dropZone.ondragleave = () => dropZone.classList.remove('drag');
+dropZone.ondrop = (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('drag');
+  handleFiles(Array.from(e.dataTransfer.files));
+};
+
+document.getElementById('monthSelect').onchange = renderMonth;
+document.querySelectorAll('.view-toggle button').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.view-toggle button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    renderMonth();
+  };
+});
+document.getElementById('setBudgetsBtn').onclick = openBudgetsModal;
+document.getElementById('exportBtn').onclick = exportData;
+document.getElementById('resetBtn').onclick = () => {
+  if (confirm('Delete all loaded statements and budgets?')) {
+    state = { statements: [], budgets: {}, manualOverrides: {} };
+    saveState();
+    render();
+    log('All data cleared.');
+  }
+};
+
+loadState();
+render();
+</script>
+</body>
+</html>
