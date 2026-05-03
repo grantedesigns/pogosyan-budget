@@ -95,6 +95,16 @@ FEES:
 UNKNOWN VENDORS:
 - If you don't recognize a vendor, make your best guess but set "needsReview": true.
 
+DESCRIPTION FORMATTING RULES:
+In the "description" field, rewrite the raw bank text into clean, human-readable format:
+- For Zelle transfers: Use the person's name only. Example: "Zelle → Arlene Hovak" or "Zelle from Best Gutter Co"
+- For card purchases: Extract the merchant name. Example: "Naimies" instead of "Mobile Purchase Sign Based 05/31 12:45p #1587 D527"
+- For known vendors: Use the clean name. Example: "Rocket Mortgage" instead of "ROCKET MORTGAGE LOAN 2589290"
+- For ACH/direct debits: Use the company name. Example: "ACH → QuickBooks" instead of "ACH Electronic Debit NSM DBAMR.C"
+- Keep descriptions under 40 characters
+- Remove transaction codes, reference numbers, timestamps, and internal bank identifiers
+- If the merchant/person name isn't clear, keep it short and descriptive: "Card purchase" or "Unknown vendor"
+
 OUTPUT FORMAT:
 Return ONLY valid JSON with this exact structure (no preamble, no markdown):
 {
@@ -106,7 +116,7 @@ Return ONLY valid JSON with this exact structure (no preamble, no markdown):
   "transactions": [
     {
       "date": "YYYY-MM-DD",
-      "description": "raw description",
+      "description": "clean human-readable description",
       "amount": number (positive = inflow, negative = outflow),
       "category": "category name",
       "businessPersonal": "business" | "personal" | "internal",
@@ -174,7 +184,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
-        max_tokens: 32000,
+        max_tokens: 16000,
         system: SYSTEM_PROMPT,
         messages: [{
           role: 'user',
