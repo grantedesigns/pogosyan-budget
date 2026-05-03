@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/categorize.js": {
+      "maxDuration": 120,
+      "memory": 1024
+    }
+  }
+}

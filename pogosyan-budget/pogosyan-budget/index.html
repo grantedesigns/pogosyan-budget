@@ -85,35 +85,6 @@
     background: var(--paper-2);
     transition: all 0.2s;
   }
-
-  .sync-banner {
-    background: var(--paper-2);
-    border: 1px solid var(--rule);
-    padding: 12px 16px;
-    border-radius: 6px;
-    margin-bottom: 16px;
-  }
-  .sync-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .sync-info { flex: 1; }
-  .sync-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
-    color: var(--muted);
-    margin-bottom: 2px;
-  }
-  .sync-status {
-    font-size: 13px;
-    font-weight: 500;
-  }
-  .sync-status.connected { color: var(--accent-2); }
-  .sync-status.syncing { color: var(--accent); }
   .upload-zone.drag { border-color: var(--accent); background: rgba(193,70,32,0.05); }
   .upload-zone.processing { border-color: var(--accent); }
   .upload-zone h3 {
@@ -468,17 +439,6 @@
   </div>
 </header>
 
-<!-- SYNC BANNER -->
-<div class="sync-banner" id="syncBanner">
-  <div class="sync-row">
-    <div class="sync-info">
-      <div class="sync-label">Cloud sync</div>
-      <div class="sync-status" id="syncStatus">Not signed in</div>
-    </div>
-    <button class="ghost small" id="syncBtn">Sign in</button>
-  </div>
-</div>
-
 <div class="upload-zone" id="uploadZone">
   <h3>Drop a statement or screenshot</h3>
   <p>PDFs, screenshots of credit card balances, anything financial.</p>
@@ -509,12 +469,6 @@
 
   <div class="kpi-row" id="kpiRow"></div>
 
-  <section class="block" id="ccSection" style="display:none;">
-    <h2>Credit Card Balances</h2>
-    <div class="section-sub">As of the most recent snapshot this month</div>
-    <div id="ccList"></div>
-  </section>
-
   <section class="block">
     <h2>Categories</h2>
     <div class="section-sub">Tap a category to see transactions</div>
@@ -536,28 +490,6 @@
   </section>
 </div>
 
-<div class="modal-bg" id="syncModal">
-  <div class="modal">
-    <h2>Cloud sync</h2>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
-      Set a passcode to sync your data across devices. Use the same passcode on every device to share data.
-      Use a unique passcode only you would know — it acts as your "account."
-    </p>
-    <div style="margin-bottom:16px;">
-      <label style="font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.15em;color:var(--muted);display:block;margin-bottom:6px;">Passcode</label>
-      <input type="password" id="passcodeInput" placeholder="Min 4 characters" style="width:100%;padding:12px;font-size:14px;font-family:'JetBrains Mono',monospace;border:1px solid var(--rule);background:var(--paper);border-radius:4px;outline:none;" autocomplete="off" />
-    </div>
-    <p style="font-size:11px;color:var(--muted);margin-bottom:16px;font-style:italic;">
-      Tip: pick something memorable like "grant-budget-2026". If you forget it, you'll lose access to that data.
-    </p>
-    <div class="modal-actions">
-      <button class="ghost" id="cancelSyncBtn">Cancel</button>
-      <button id="signOutBtn" style="display:none;background:var(--accent);">Sign out</button>
-      <button id="confirmSyncBtn">Sign in</button>
-    </div>
-  </div>
-</div>
-
 <div class="modal-bg" id="budgetModal">
   <div class="modal">
     <h2>Set monthly budgets</h2>
@@ -572,88 +504,7 @@
 
 <script>
 const STORAGE_KEY = 'pogosyan_budget_v2';
-const PASSCODE_KEY = 'pogosyan_budget_passcode';
-let state = { statements: [], budgets: {}, manualOverrides: {}, creditCards: [] };
-let syncTimeout = null;
-
-// ============================================================
-// CLOUD SYNC
-// ============================================================
-function getPasscode() {
-  return localStorage.getItem(PASSCODE_KEY) || '';
-}
-function setPasscode(p) {
-  if (p) localStorage.setItem(PASSCODE_KEY, p);
-  else localStorage.removeItem(PASSCODE_KEY);
-}
-
-async function cloudSave() {
-  const passcode = getPasscode();
-  if (!passcode) return;
-  updateSyncStatus('syncing', 'Saving...');
-  try {
-    const resp = await fetch('/api/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'save', passcode, data: state })
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const result = await resp.json();
-    updateSyncStatus('connected', `Synced · ${formatTime(result.savedAt)}`);
-  } catch (e) {
-    updateSyncStatus('error', `Sync failed: ${e.message}`);
-  }
-}
-
-async function cloudLoad() {
-  const passcode = getPasscode();
-  if (!passcode) return false;
-  updateSyncStatus('syncing', 'Loading...');
-  try {
-    const resp = await fetch('/api/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'load', passcode })
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const result = await resp.json();
-    if (result.data) {
-      state = { ...state, ...result.data };
-      saveStateLocal();
-      updateSyncStatus('connected', `Synced · ${formatTime(result.lastSaved)}`);
-      return true;
-    } else {
-      updateSyncStatus('connected', 'Signed in · No cloud data yet');
-      return false;
-    }
-  } catch (e) {
-    updateSyncStatus('error', `Load failed: ${e.message}`);
-    return false;
-  }
-}
-
-function scheduleCloudSave() {
-  if (!getPasscode()) return;
-  if (syncTimeout) clearTimeout(syncTimeout);
-  syncTimeout = setTimeout(() => cloudSave(), 1500);
-}
-
-function updateSyncStatus(status, text) {
-  const statusEl = document.getElementById('syncStatus');
-  statusEl.textContent = text;
-  statusEl.className = 'sync-status ' + status;
-  document.getElementById('syncBtn').textContent = getPasscode() ? 'Manage' : 'Sign in';
-}
-
-function formatTime(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const today = new Date();
-  if (d.toDateString() === today.toDateString()) {
-    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  }
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
+let state = { statements: [], budgets: {}, manualOverrides: {} };
 
 // ============================================================
 // PERSISTENCE
@@ -664,12 +515,8 @@ function loadState() {
     if (raw) state = { ...state, ...JSON.parse(raw) };
   } catch (e) { console.error(e); }
 }
-function saveStateLocal() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
 function saveState() {
-  saveStateLocal();
-  scheduleCloudSave();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 // ============================================================
@@ -745,47 +592,20 @@ async function handleFiles(files) {
     }
     try {
       const result = await categorizeStatement(file);
-
-      // Branch: credit card balance/statement vs checking account statement
-      if (result.type === 'credit_card') {
-        const ccId = `CC_${result.card}_${result.asOfDate}_${Date.now()}`;
-        const cc = {
-          id: ccId,
-          filename: file.name,
-          card: result.card,
-          asOfDate: result.asOfDate,
-          currentBalance: result.currentBalance,
-          statementBalance: result.statementBalance ?? null,
-          minimumPayment: result.minimumPayment ?? null,
-          availableCredit: result.availableCredit ?? null,
-          transactions: (result.transactions || []).map((t, i) => ({ ...t, id: `${ccId}_t${i}` }))
-        };
-        // If a balance for the same card and same month already exists, replace it (most recent wins)
-        const monthKey = (cc.asOfDate || '').substring(0, 7);
-        state.creditCards = state.creditCards.filter(existing => {
-          const existingMonth = (existing.asOfDate || '').substring(0, 7);
-          return !(existing.card === cc.card && existingMonth === monthKey);
-        });
-        state.creditCards.push(cc);
-        saveState();
-        log(`✓ ${file.name} — ${cc.card} balance: $${cc.currentBalance?.toFixed(2) || '?'}`, 'ok');
-      } else {
-        // Standard checking statement
-        const stmtId = `${result.bank}_${result.period.start}_${Date.now()}`;
-        const stmt = {
-          id: stmtId,
-          filename: file.name,
-          bank: result.bank,
-          accountType: result.accountType,
-          period: result.period,
-          beginningBalance: result.beginningBalance,
-          endingBalance: result.endingBalance,
-          transactions: result.transactions.map((t, i) => ({ ...t, id: `${stmtId}_t${i}` }))
-        };
-        state.statements.push(stmt);
-        saveState();
-        log(`✓ ${file.name} — ${result.transactions.length} txns`, 'ok');
-      }
+      const stmtId = `${result.bank}_${result.period.start}_${Date.now()}`;
+      const stmt = {
+        id: stmtId,
+        filename: file.name,
+        bank: result.bank,
+        accountType: result.accountType,
+        period: result.period,
+        beginningBalance: result.beginningBalance,
+        endingBalance: result.endingBalance,
+        transactions: result.transactions.map((t, i) => ({ ...t, id: `${stmtId}_t${i}` }))
+      };
+      state.statements.push(stmt);
+      saveState();
+      log(`✓ ${file.name} — ${result.transactions.length} txns`, 'ok');
     } catch (e) {
       log(`✗ ${file.name}: ${e.message}`, 'err');
     }
@@ -805,16 +625,7 @@ function getAllMonths() {
     if (t.businessPersonal === 'internal') return;
     months.add(getMonthKey(t.date));
   }));
-  (state.creditCards || []).forEach(cc => {
-    if (cc.asOfDate) months.add(getMonthKey(cc.asOfDate));
-  });
   return Array.from(months).sort().reverse();
-}
-
-function getCreditCardsForMonth(monthKey) {
-  return (state.creditCards || []).filter(cc => {
-    return cc.asOfDate && getMonthKey(cc.asOfDate) === monthKey;
-  });
 }
 
 function getTransactionsForMonth(monthKey, view = 'all') {
@@ -1013,40 +824,6 @@ function renderMonth() {
     </div>
   `;
 
-  // Credit Card Balances section
-  const ccs = getCreditCardsForMonth(monthKey);
-  const ccSection = document.getElementById('ccSection');
-  const ccList = document.getElementById('ccList');
-  if (ccs.length > 0) {
-    ccSection.style.display = 'block';
-    const totalOwed = ccs.reduce((s, c) => s + (c.currentBalance || 0), 0);
-    ccList.innerHTML = `
-      ${ccs.sort((a, b) => (b.currentBalance || 0) - (a.currentBalance || 0)).map(cc => `
-        <div class="cat-card">
-          <div class="cat-head">
-            <div class="name">
-              ${cc.card}
-              <span class="count">as of ${cc.asOfDate ? cc.asOfDate.substring(5) : '?'}</span>
-            </div>
-            <div class="amt">${fmt(cc.currentBalance || 0)}</div>
-          </div>
-          ${(cc.minimumPayment != null || cc.statementBalance != null || cc.availableCredit != null) ? `
-            <div class="cat-budget">
-              ${cc.minimumPayment != null ? `<span>Min: ${fmt(cc.minimumPayment)}</span>` : '<span></span>'}
-              ${cc.availableCredit != null ? `<span>Avail: ${fmt(cc.availableCredit)}</span>` : '<span></span>'}
-            </div>
-          ` : ''}
-        </div>
-      `).join('')}
-      <div style="margin-top:12px;padding:14px 16px;background:var(--ink);color:var(--paper);border-radius:4px;display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.15em;">Total CC Debt</span>
-        <span style="font-size:18px;font-weight:600;font-family:'JetBrains Mono',monospace;">${fmt(totalOwed)}</span>
-      </div>
-    `;
-  } else {
-    ccSection.style.display = 'none';
-  }
-
   // Categories as cards
   const sortedCats = Object.entries(cats).sort((a, b) => b[1].total - a[1].total);
   const catList = document.getElementById('catList');
@@ -1183,59 +960,16 @@ document.querySelectorAll('.view-toggle button').forEach(b => {
 document.getElementById('setBudgetsBtn').onclick = openBudgetsModal;
 document.getElementById('exportBtn').onclick = exportData;
 document.getElementById('resetBtn').onclick = () => {
-  if (confirm('Delete all loaded statements, credit cards, and budgets?')) {
-    state = { statements: [], budgets: {}, manualOverrides: {}, creditCards: [] };
+  if (confirm('Delete all loaded statements and budgets?')) {
+    state = { statements: [], budgets: {}, manualOverrides: {} };
     saveState();
     render();
     log('All data cleared.');
   }
 };
 
-// ============================================================
-// SYNC MODAL
-// ============================================================
-document.getElementById('syncBtn').onclick = () => {
-  const current = getPasscode();
-  document.getElementById('passcodeInput').value = current;
-  document.getElementById('signOutBtn').style.display = current ? 'block' : 'none';
-  document.getElementById('confirmSyncBtn').textContent = current ? 'Update & sync' : 'Sign in';
-  document.getElementById('syncModal').classList.add('visible');
-};
-document.getElementById('cancelSyncBtn').onclick = () => {
-  document.getElementById('syncModal').classList.remove('visible');
-};
-document.getElementById('confirmSyncBtn').onclick = async () => {
-  const newCode = document.getElementById('passcodeInput').value.trim();
-  if (newCode.length < 4) {
-    alert('Passcode must be at least 4 characters');
-    return;
-  }
-  setPasscode(newCode);
-  document.getElementById('syncModal').classList.remove('visible');
-  // Try to load existing cloud data first; if present, replace local state
-  const hadCloudData = await cloudLoad();
-  if (!hadCloudData && state.statements.length > 0) {
-    // Local has data, cloud is empty — push local up
-    await cloudSave();
-  }
-  render();
-};
-document.getElementById('signOutBtn').onclick = () => {
-  if (confirm('Sign out? Local data stays on this device. To sign back in, use the same passcode.')) {
-    setPasscode('');
-    updateSyncStatus('', 'Not signed in');
-    document.getElementById('syncModal').classList.remove('visible');
-  }
-};
-
 loadState();
-if (getPasscode()) {
-  updateSyncStatus('connected', 'Signed in · loading...');
-  cloudLoad().then(() => render());
-} else {
-  updateSyncStatus('', 'Not signed in');
-  render();
-}
+render();
 </script>
 </body>
 </html>
