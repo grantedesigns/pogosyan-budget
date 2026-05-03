@@ -95,9 +95,54 @@ FEES:
 UNKNOWN VENDORS:
 - If you don't recognize a vendor, make your best guess but set "needsReview": true.
 
-OUTPUT FORMAT:
+CREDIT CARD UPLOADS — IMPORTANT:
+This tool also accepts credit card balance screenshots and credit card statements. When you receive one, return a DIFFERENT shape (see below). Identify these card types:
+- "Apple Card" or "Goldman Sachs Bank" = Apple Card
+- "Citi" + words like "Double Cash", "Custom Cash", "Diamond Preferred", "Premier", or any Citi credit card (NOT Citi checking) = Citi Card
+- "Chase" + "Freedom", "Sapphire", "Slate", "Ink", or any Chase credit card (NOT Chase checking) = Chase Card
+
+How to detect a credit card upload vs a checking statement:
+- Has "Credit Card", "Statement Balance", "Minimum Payment Due", "Available Credit", "Current Balance" prominently
+- Shows a single balance number (often shown as positive, what you owe)
+- Does NOT show beginning/ending checking balances or daily transaction lists in a checking format
+- Screenshots from card apps usually show just balance + maybe recent transactions
+
+For credit card uploads, return THIS format instead of the checking format:
+{
+  "type": "credit_card",
+  "card": "Apple Card" | "Citi Card" | "Chase Card" | "Other",
+  "asOfDate": "YYYY-MM-DD",
+  "currentBalance": number (positive = amount owed),
+  "statementBalance": number or null (the closing statement balance if shown),
+  "minimumPayment": number or null,
+  "availableCredit": number or null,
+  "transactions": [
+    // Optional: only include if the upload is a full statement with transaction list
+    {
+      "date": "YYYY-MM-DD",
+      "description": "clean human-readable description",
+      "amount": number (negative = purchase, positive = payment/refund),
+      "category": "category name"
+    }
+  ]
+}
+
+If it's a screenshot of just a balance, set "transactions" to an empty array [].
+
+DESCRIPTION FORMATTING RULES (for both checking and credit card transactions):
+In the "description" field, rewrite the raw bank text into clean, human-readable format:
+- For Zelle transfers: Use the person's name only. Example: "Zelle → Arlene Hovak" or "Zelle from Best Gutter Co"
+- For card purchases: Extract the merchant name. Example: "Naimies" instead of "Mobile Purchase Sign Based 05/31 12:45p #1587 D527"
+- For known vendors: Use the clean name. Example: "Rocket Mortgage" instead of "ROCKET MORTGAGE LOAN 2589290"
+- For ACH/direct debits: Use the company name. Example: "ACH → QuickBooks" instead of "ACH Electronic Debit NSM DBAMR.C"
+- Keep descriptions under 40 characters
+- Remove transaction codes, reference numbers, timestamps, and internal bank identifiers
+- If the merchant/person name isn't clear, keep it short and descriptive: "Card purchase" or "Unknown vendor"
+
+OUTPUT FORMAT FOR CHECKING STATEMENTS:
 Return ONLY valid JSON with this exact structure (no preamble, no markdown):
 {
+  "type": "checking",
   "bank": "Chase" | "Citi" | "Other",
   "accountType": "Business Checking" | "Personal Checking" | "Joint Personal Checking",
   "period": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
@@ -106,7 +151,7 @@ Return ONLY valid JSON with this exact structure (no preamble, no markdown):
   "transactions": [
     {
       "date": "YYYY-MM-DD",
-      "description": "raw description",
+      "description": "clean human-readable description",
       "amount": number (positive = inflow, negative = outflow),
       "category": "category name",
       "businessPersonal": "business" | "personal" | "internal",
@@ -162,8 +207,8 @@ export default async function handler(req, res) {
     };
 
     const promptText = isImage
-      ? 'Screenshot of a credit card balance or financial info. Extract what you see and return JSON in the specified format. If just a balance display, return one transaction with description "Current CC Balance" and amount as negative. RETURN ONLY THE JSON OBJECT. NO PREAMBLE. START WITH { END WITH }.'
-      : 'Categorize EVERY transaction in this statement. Be exhaustive. RETURN ONLY THE JSON OBJECT. NO PREAMBLE. START WITH { END WITH }.';
+      ? 'Screenshot of financial info. It could be a credit card balance, a credit card statement, or a checking account statement. Identify which type and return the appropriate JSON format. RETURN ONLY THE JSON OBJECT. NO PREAMBLE. START WITH { END WITH }.'
+      : 'This is either a checking account statement or a credit card statement. Identify which and return the appropriate JSON format. Categorize EVERY transaction. RETURN ONLY THE JSON OBJECT. NO PREAMBLE. START WITH { END WITH }.';
 
     const anthropicResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -173,8 +218,8 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-5',
-        max_tokens: 32000,
+        model: 'claude-sonnet-4-5',
+        max_tokens: 16000,
         system: SYSTEM_PROMPT,
         messages: [{
           role: 'user',
@@ -223,10 +268,15 @@ export default async function handler(req, res) {
     }
 
     if (!parsed.transactions || !Array.isArray(parsed.transactions)) {
-      return res.status(500).json({
-        error: 'Response missing transactions array',
-        receivedShape: Object.keys(parsed)
-      });
+      // Credit card balance screenshots may have empty transactions array; that's OK as long as it's a CC
+      if (parsed.type === 'credit_card') {
+        parsed.transactions = parsed.transactions || [];
+      } else {
+        return res.status(500).json({
+          error: 'Response missing transactions array',
+          receivedShape: Object.keys(parsed)
+        });
+      }
     }
 
     return res.status(200).json(parsed);
